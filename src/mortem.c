@@ -57,27 +57,17 @@ SEXP r_mortem_init(SEXP signalsSEXP) {
 
 }
 
-void mortem_backtrace() {
+void mortem_backtrace(int pid) {
 
 #ifdef MORTEM_ENABLED
 
-  // get ready to fork
-  int parent = getpid();
-  int child = fork();
-
-  // parent: wait for child to finish
-  if (child != 0) {
-    waitpid(child, NULL, 0);
-    return;
-  }
-
-  // child: run debugger
+  // buikd debugger command
   char command[128];
 
 #ifdef __APPLE__
-  snprintf(command, 128, "lldb -b -p %i -o bt 2> /dev/null", parent);
+  snprintf(command, 128, "lldb -b -p %i -o bt 2> /dev/null", pid);
 #else
-  snprintf(command, 128, "gdb -batch -p %i -ex bt 2> /dev/null", parent);
+  snprintf(command, 128, "gdb -batch -p %i -ex bt 2> /dev/null", pid);
 #endif
 
   // run it
@@ -89,9 +79,6 @@ void mortem_backtrace() {
   char buffer[256];
   while (fgets(buffer, 256, fp) != NULL)
     Rprintf("%s", buffer);
-
-  // exit
-  _exit(0);
 
 #endif
 
@@ -110,8 +97,14 @@ void mortem_signal_handler(int signum) {
   Rprintf(fmt, signum, strsignal(signum));
 #endif
 
-  // print our stack trace
-  mortem_backtrace();
+  // print stack trace (use fork to run child process)
+  int pid = getpid();
+  int child = fork();
+  if (child != 0) {
+    waitpid(child, NULL, 0);
+  } else {
+    mortem_backtrace(pid);
+  }
 
   // call original signal action if available
   struct sigaction action = s_actions[signum];
