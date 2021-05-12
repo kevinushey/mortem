@@ -11,8 +11,13 @@
 
 #include <signal.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include <execinfo.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 
 #include <initializer_list>
 #include <map>
@@ -50,16 +55,40 @@ void backtrace_print() {
 
 #ifdef MORTEM_ENABLED
 
-  const int max_depth = 128;
-  void* addrs[max_depth];
+// get read to fork
+int parent = getpid();
+int child = fork();
 
-  int depth = ::backtrace(addrs, max_depth);
-  char** symbols = ::backtrace_symbols(addrs, depth);
+if (child == 0) {
 
-  for (int i = 0; i < depth; i++)
-    Rprintf("%s\n", symbols[i]);
+  // create debugger command
+  char command[128];
 
-  free(symbols);
+#ifdef __APPLE__
+  snprintf(command, 128, "lldb -b -p %i -o bt 2> /dev/null", parent);
+#else
+  snprintf(command, 128, "gdb -batch -p %i -ex bt 2> /dev/null", parent);
+#endif
+
+  // run it
+  FILE* fp = popen(command, "r");
+  if (fp == NULL)
+    return;
+
+  // pipe output back through R
+  char buffer[256];
+  while (fgets(buffer, 256, fp) != NULL)
+    Rprintf("%s", buffer);
+
+  // exit
+  _exit(0);
+
+} else {
+
+  // wait for child
+  waitpid(child, NULL, 0);
+
+}
 
 #endif
 
@@ -68,6 +97,8 @@ void backtrace_print() {
 void aborted(int signum) {
 
 #ifdef MORTEM_ENABLED
+
+  Rprintf("[!] Caught deadly signal %i [%s]\n", signum, strsignal(signum));
 
   // print our stack trace
   backtrace_print();
@@ -78,10 +109,6 @@ void aborted(int signum) {
     // read handler
     auto action = s_actions[signum];
     auto handler = action.sa_handler;
-
-    // handle aborts specially if no handler registered
-    if (handler == NULL && signum == SIGABRT)
-      handler = s_actions[SIGSEGV].sa_handler;
 
     // invoke handler, if any
     if (handler != NULL)
