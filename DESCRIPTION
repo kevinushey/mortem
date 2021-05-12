@@ -1,0 +1,12 @@
+Package: mortem
+Type: Package
+Title: Post-Mortem Debugging for R
+Version: 0.0.1
+Author: Kevin Ushey
+Maintainer: Kevin Ushey <kevinushey@gmail.com>
+Description: Tools for post-mortem debugging a crashed R session.
+    Currently, just prints a C stack trace when the R session crashes.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
