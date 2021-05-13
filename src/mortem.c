@@ -9,6 +9,7 @@
 
 #ifdef MORTEM_ENABLED
 
+#include <dlfcn.h>
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
@@ -21,11 +22,6 @@
 #include <R.h>
 #include <Rinternals.h>
 
-void Rprintf(const char* fmt, ...);
-
-#define lengthof(x) (sizeof(x) / sizeof(*x))
-
-// array of signal actions
 struct sigaction s_actions[32] = {{ 0 }};
 
 #endif
@@ -57,11 +53,30 @@ SEXP r_mortem_init(SEXP signalsSEXP) {
 
 }
 
+SEXP r_mortem_backtrace() {
+
+#ifdef MORTEM_ENABLED
+
+  mortem_backtrace(getpid());
+
+#endif
+
+  return R_NilValue;
+
+}
+
 void mortem_backtrace(int pid) {
 
 #ifdef MORTEM_ENABLED
 
-  // buikd debugger command
+  // fork this process
+  int child = fork();
+  if (child != 0) {
+    waitpid(child, NULL, 0);
+    return;
+  }
+
+  // build debugger command
   char command[128];
 
 #ifdef __APPLE__
@@ -75,10 +90,15 @@ void mortem_backtrace(int pid) {
   if (fp == NULL)
     return;
 
-  // pipe output back through R
-  char buffer[256];
-  while (fgets(buffer, 256, fp) != NULL)
-    Rprintf("%s", buffer);
+  // write output to console
+  char buffer[512];
+  while (fgets(buffer, 512, fp) != NULL)
+    write(STDOUT_FILENO, buffer, strlen(buffer));
+
+  // exit
+  void* handle = dlopen(NULL, RTLD_NOW);
+  void (*_exit)(int) = (void (*)(int)) dlsym(handle, "_exit");
+  _exit(0);
 
 #endif
 
@@ -97,14 +117,8 @@ void mortem_signal_handler(int signum) {
   Rprintf(fmt, signum, strsignal(signum));
 #endif
 
-  // print stack trace (use fork to run child process)
-  int pid = getpid();
-  int child = fork();
-  if (child != 0) {
-    waitpid(child, NULL, 0);
-  } else {
-    mortem_backtrace(pid);
-  }
+  // print stack trace
+  mortem_backtrace(getpid());
 
   // call original signal action if available
   struct sigaction action = s_actions[signum];
