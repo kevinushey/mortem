@@ -7,10 +7,12 @@
 /* .Call calls */
 extern SEXP r_mortem_init();
 extern SEXP r_mortem_backtrace();
+extern SEXP r_mortem_enabled();
 
 static const R_CallMethodDef CallEntries[] = {
     {"r_mortem_init",      (DL_FUNC) &r_mortem_init,      0},
     {"r_mortem_backtrace", (DL_FUNC) &r_mortem_backtrace, 0},
+    {"r_mortem_enabled",   (DL_FUNC) &r_mortem_enabled,   0},
     {NULL, NULL, 0}
 };
 

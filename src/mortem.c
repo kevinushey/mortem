@@ -53,6 +53,14 @@ SEXP r_mortem_init(SEXP signalsSEXP) {
 
 }
 
+SEXP r_mortem_enabled() {
+#ifdef MORTEM_ENABLED
+  return Rf_ScalarLogical(1);
+#else
+  return Rf_ScalarLogical(0);
+#endif
+}
+
 SEXP r_mortem_backtrace() {
 
 #ifdef MORTEM_ENABLED
@@ -128,3 +136,4 @@ void mortem_signal_handler(int signum) {
 #endif
 
 }
+
